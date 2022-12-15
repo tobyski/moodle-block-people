@@ -82,16 +82,16 @@ class block_people extends block_base {
      * @return string
      */
     public function get_content() {
-        global $COURSE, $CFG, $OUTPUT, $USER;
+        global $COURSE, $CFG, $OUTPUT, $USER, $DB;
 
-        if ($this->content !== null) {
-            return $this->content;
-        }
+        // if ($this->content !== null) {
+        //     return $this->content;
+        // }
 
-        if (empty($this->instance)) {
-            $this->content = '';
-            return $this->content;
-        }
+        // if (empty($this->instance)) {
+        //     $this->content = '';
+        //     return $this->content;
+        // }
 
         // Prepare output.
         $this->content = new stdClass();
@@ -101,16 +101,49 @@ class block_people extends block_base {
         // Get context.
         $currentcontext = $this->page->context;
 
+        // get the icons wew ant to show
+        $iconFields = get_config('block_people', 'iconfields');
+        if($iconFields) {
+            $iconFields = explode(',', $iconFields);
+        }
+
+        // get the user fields we want to show
+        $userFields = get_config('block_people', 'userfields');
+        if($userFields) {
+            $userFields = explode(',', $userFields);
+        }
+
+        // get any user profile fields we would like to show, make sure they
+        // are stored in the correct order
+        $categorisedProfileFields = [];
+        $categories = $DB->get_records('user_info_category', null, 'sortorder ASC');
+        foreach ($categories as $category) {
+            $profileFields = get_config('block_people', 'profilefields_cat_' . $category->id);
+            if($profileFields) {
+                $profileFields = explode(',', $profileFields);
+                // we also need to know the current sort order of the profile fields
+                // in this category so we can show them in the correct order without
+                // having to reorder everything in settings
+                $sortedProfileFields = $DB->get_records('user_info_field', array('categoryid' => $category->id), 'sortorder ASC');
+                $categorisedProfileFields[] = [
+                    'category' => $category,
+                    'fields' => $profileFields,
+                    'currentFieldSort' => $sortedProfileFields
+                ];
+            }
+        }
+
         // Get teachers separated by roles.
         $roles = get_config('block_people', 'roles');
         if (!empty($roles)) {
             $teacherroles = explode(',', $roles);
-            $teachers = get_role_users($teacherroles,
+            $teachers = get_role_users(
+                    $teacherroles,
                     $currentcontext,
                     true,
-                    'ra.id AS raid, r.id AS roleid, r.sortorder, u.id, u.lastname, u.firstname, u.firstnamephonetic,
-                            u.lastnamephonetic, u.middlename, u.alternatename, u.picture, u.imagealt, u.email, u.suspended',
-                    'r.sortorder ASC, u.lastname ASC, u.firstname ASC');
+                    'ra.id AS raid, r.id AS roleid, r.sortorder, u.*',
+                    'r.sortorder ASC, u.lastname ASC, u.firstname ASC'
+            );
         } else {
             $teachers = array();
         }
@@ -183,33 +216,94 @@ class block_people extends block_base {
             $user->imagealt = $teacher->imagealt;
             $user->email = $teacher->email;
 
-            // Teacher image.
-            $this->content->text .= html_writer::start_tag('div', array('class' => 'image'));
-            if (has_capability('moodle/user:viewdetails', $currentcontext)) {
-                $this->content->text .= $OUTPUT->user_picture($user,
-                        array('size' => 30, 'link' => true, 'courseid' => $COURSE->id, 'includefullname' => false));
-            } else {
-                $this->content->text .= $OUTPUT->user_picture($user,
-                        array('size' => 30, 'link' => false, 'courseid' => $COURSE->id, 'includefullname' => false));
+            // picture is now optional and must be enabled
+            if(in_array('picture', $userFields)) {
+                $this->content->text .= html_writer::start_tag('div', array('class' => 'image'));
+                if (has_capability('moodle/user:viewdetails', $currentcontext)) {
+                    $this->content->text .= $OUTPUT->user_picture($user,
+                            array('size' => 30, 'link' => true, 'courseid' => $COURSE->id, 'includefullname' => false));
+                } else {
+                    $this->content->text .= $OUTPUT->user_picture($user,
+                            array('size' => 30, 'link' => false, 'courseid' => $COURSE->id, 'includefullname' => false));
+                }
+                $this->content->text .= html_writer::end_tag('div');
             }
+
+            $this->content->text .= html_writer::start_tag('div', array('class' => 'details'));
+
+            // display userFields
+            foreach($userFields as $userField) {
+
+                // ignore these as they are special cases which are handled elsewhere
+                if($userField == 'picture') {
+                    continue;
+                }
+
+                // special case for fullname virtual field
+                if($userField == 'fullname') {
+                    $this->content->text .= html_writer::start_tag('div', array('class' => 'name'));
+                    $this->content->text .= fullname($teacher);
+                    $this->content->text .= html_writer::end_tag('div');
+                }
+                // email get's a special mailto: link- @TODO this may need to leverage the logic around hiddenfields
+                else if($userField == 'email') {
+                    $this->content->text .= html_writer::start_tag('div', array('class' => 'email'));
+                    $this->content->text .= html_writer::start_tag('a', array('href'  => new moodle_url('mailto:' . $teacher->email), 'title' => get_string('sendmessageto', 'core_message', fullname($teacher))));
+                    $this->content->text .= $teacher->email;
+                    $this->content->text .= html_writer::end_tag('a');
+                    $this->content->text .= html_writer::end_tag('div');
+                }
+                // all other cases
+                else {
+                    $this->content->text .= html_writer::start_tag('div', array('class' => $userField));
+                    $this->content->text .= $teacher->$userField;
+                    $this->content->text .= html_writer::end_tag('div');
+                }
+            }
+
+            // display profileFields - index all the data first for easy lookup
+            $indexedTeacherProfileFields = [];
+            $teacherProfileFields = profile_get_user_fields_with_data($teacher->id);
+            foreach($teacherProfileFields as $teacherProfileField) {
+                $indexedTeacherProfileFields["{$teacherProfileField->field->categoryid}-{$teacherProfileField->fieldid}"] = $teacherProfileField->data;
+            }
+            foreach($categorisedProfileFields as $categoryMeta) {
+                $displayFields = $categoryMeta['fields'];
+                // loop over all the possible fields in this category in correct order
+                foreach($categoryMeta['currentFieldSort'] as $categoryField) {
+                    // lookup to determine if this should be displayed
+                    if(in_array($categoryField->shortname, $displayFields)) {
+                        $this->content->text .= html_writer::start_tag('div', array('class' => $categoryField->shortname));
+                        $this->content->text .= $indexedTeacherProfileFields["{$categoryMeta['category']->id}-{$categoryField->id}"];
+                        $this->content->text .= html_writer::end_tag('div');
+                    }
+                }
+            }
+
+            // display icons
+            $this->content->text .= html_writer::start_tag('div', array('class' => 'icons'));
+
+            foreach($iconFields as $iconField) {
+                if($iconField == 'chat') {
+                    if ($CFG->messaging && has_capability('moodle/site:sendmessage', $currentcontext) && $teacher->id != $USER->id && \core_message\api::can_send_message($teacher->id, $USER->id)) {
+                        $this->content->text .= html_writer::start_tag('a', array('href'  => new moodle_url('/message/index.php', array('id' => $teacher->id)), 'title' => get_string('sendmessageto', 'core_message', fullname($teacher))));
+                        $this->content->text .= $OUTPUT->pix_icon('i/rss', get_string('sendmessageto', 'core_message', fullname($teacher)), 'moodle');
+                        $this->content->text .= html_writer::end_tag('a');
+                    }
+                }
+                else if($iconField == 'email') {
+                    if ($CFG->messaging && has_capability('moodle/site:sendmessage', $currentcontext) && $teacher->id != $USER->id && \core_message\api::can_send_message($teacher->id, $USER->id)) {
+                        $this->content->text .= html_writer::start_tag('a', array('href'  => new moodle_url('mailto:' . $teacher->email), 'title' => get_string('sendmessageto', 'core_message', fullname($teacher))));
+                        $this->content->text .= $OUTPUT->pix_icon('t/email', get_string('sendemailto', 'block_people', fullname($teacher)), 'moodle');
+                        $this->content->text .= html_writer::end_tag('a');
+                    }
+                }
+            }
+
+            // end icons div
             $this->content->text .= html_writer::end_tag('div');
 
-            // Teacher details.
-            $this->content->text .= html_writer::start_tag('div', array('class' => 'details'));
-            $this->content->text .= html_writer::start_tag('div', array('class' => 'name'));
-            $this->content->text .= fullname($teacher);
-            $this->content->text .= html_writer::end_tag('div');
-            $this->content->text .= html_writer::start_tag('div', array('class' => 'icons'));
-            if ($CFG->messaging && has_capability('moodle/site:sendmessage', $currentcontext) && $teacher->id != $USER->id &&
-                    \core_message\api::can_send_message($teacher->id, $USER->id)) {
-                $this->content->text .= html_writer::start_tag('a',
-                        array('href'  => new moodle_url('/message/index.php', array('id' => $teacher->id)),
-                              'title' => get_string('sendmessageto', 'core_message', fullname($teacher))));
-                $this->content->text .= $OUTPUT->pix_icon('t/email',
-                        get_string('sendmessageto', 'core_message', fullname($teacher)), 'moodle');
-                $this->content->text .= html_writer::end_tag('a');
-            }
-            $this->content->text .= html_writer::end_tag('div');
+            // end details div
             $this->content->text .= html_writer::end_tag('div');
 
             // End output teacher.

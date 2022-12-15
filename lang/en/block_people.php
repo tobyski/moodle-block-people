@@ -50,6 +50,19 @@ $string['setting_rolesheading'] = 'Roles';
 $string['setting_roles'] = 'Show these roles';
 $string['setting_roles_desc'] = 'This setting allows you to control which users appear in this block. Users need to have at least one of these roles in a course to be shown in the block.';
 
+$string['setting_profilefieldsheading'] = 'Profile Fields';
+
+$string['setting_iconfields'] = 'Show these icons';
+$string['setting_iconfields_desc'] = 'This setting allows you to control which icons appear in this block.';
+
+$string['setting_userfields'] = 'Show these user fields';
+$string['setting_userfields_desc'] = 'This setting allows you to control which user fields appear in this block.';
+
+$string['setting_profilefields'] = 'Show these profile fields';
+$string['setting_profilefields_desc'] = 'This setting allows you to control which profile fields appear in this block.';
+
+$string['sendemailto'] = 'Send email to {$a}';
+
 // Notifications.
 $string['resetvisibilitysuccess'] = 'Success! All "block_people" instances are visible (again). <br/> The setting "Reset visibility" has been reset.';
 $string['resetvisibilityerror'] = 'Oops... Something went wrong updating the database tables... <br/> The setting "Reset visibility" has been reset.';

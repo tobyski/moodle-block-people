@@ -25,9 +25,42 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
-    global $CFG;
+    global $CFG, $DB;
     // Locallib for updatedcallback function.
     require_once($CFG->dirroot.'/blocks/people/locallib.php');
+
+    // Custom admin settings
+    require_once($CFG->dirroot.'/blocks/people/classes/setting/admin_setting_pickuserfields.php');
+    require_once($CFG->dirroot.'/blocks/people/classes/setting/admin_setting_pickprofilefields.php');
+
+    // Settings title to group profile field related settings together with a common heading. We don't want a description here.
+    $name = 'block_people/profilefieldsheading';
+    $title = get_string('setting_profilefieldsheading', 'block_people', null, true);
+    $setting = new admin_setting_heading($name, $title, '');
+    $settings->add($setting);
+
+    // Which user fields to display
+    $name = 'block_people/iconfields';
+    $title = get_string('setting_iconfields', 'block_people', null, true);
+    $description = get_string('setting_iconfields_desc', 'block_people', null, true);
+    $default = array('chat','email');
+    $settings->add(new block_people\setting\admin_setting_pickiconfields($name, $title, $description, $default));
+
+    // Which user fields to display
+    $name = 'block_people/userfields';
+    $title = get_string('setting_userfields', 'block_people', null, true);
+    $description = get_string('setting_userfields_desc', 'block_people', null, true);
+    $default = array('fullname','email','phone1');
+    $settings->add(new block_people\setting\admin_setting_pickuserfields($name, $title, $description, $default));
+    
+    // Setting to configure which user profile fields are shown within the block
+    $categories = $DB->get_records('user_info_category', null, 'sortorder ASC');
+    foreach ($categories as $category) {
+        $name = 'block_people/profilefields_cat_' . $category->id;
+        $title = format_string($category->name);
+        $description = get_string('setting_profilefields_desc', 'block_people', null, true);
+        $settings->add(new block_people\setting\admin_setting_pickprofilefields($name, $title, $description, $category));
+    }
 
     // Settings title to group role related settings together with a common heading. We don't want a description here.
     $name = 'block_people/rolesheading';
