@@ -269,9 +269,11 @@ class block_people extends block_base {
                 }
                 // all other cases
                 else {
-                    $this->content->text .= html_writer::start_tag('div', array('class' => $userField));
-                    $this->content->text .= $teacher->$userField;
-                    $this->content->text .= html_writer::end_tag('div');
+                    if($teacher->$userField != null && strlen($teacher->$userField) > 0) {
+                        $this->content->text .= html_writer::start_tag('div', array('class' => $userField));
+                        $this->content->text .= $teacher->$userField;
+                        $this->content->text .= html_writer::end_tag('div');
+                    }
                 }
             }
 
