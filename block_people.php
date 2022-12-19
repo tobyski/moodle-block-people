@@ -287,9 +287,12 @@ class block_people extends block_base {
                 foreach($categoryMeta['currentFieldSort'] as $categoryField) {
                     // lookup to determine if this should be displayed
                     if(in_array($categoryField->shortname, $displayFields)) {
-                        $this->content->text .= html_writer::start_tag('div', array('class' => $categoryField->shortname));
-                        $this->content->text .= $indexedTeacherProfileFields["{$categoryMeta['category']->id}-{$categoryField->id}"];
-                        $this->content->text .= html_writer::end_tag('div');
+                        $key = "{$categoryMeta['category']->id}-{$categoryField->id}";
+                        if(isset($indexedTeacherProfileFields[$key]) && strlen($indexedTeacherProfileFields[$key]) > 0) {
+                            $this->content->text .= html_writer::start_tag('div', array('class' => $categoryField->shortname));
+                            $this->content->text .= $indexedTeacherProfileFields[$key];
+                            $this->content->text .= html_writer::end_tag('div');
+                        }
                     }
                 }
             }
