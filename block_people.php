@@ -84,14 +84,14 @@ class block_people extends block_base {
     public function get_content() {
         global $COURSE, $CFG, $OUTPUT, $USER, $DB;
 
-        // if ($this->content !== null) {
-        //     return $this->content;
-        // }
+        if ($this->content !== null) {
+            return $this->content;
+        }
 
-        // if (empty($this->instance)) {
-        //     $this->content = '';
-        //     return $this->content;
-        // }
+        if (empty($this->instance)) {
+            $this->content = '';
+            return $this->content;
+        }
 
         // Prepare output.
         $this->content = new stdClass();
@@ -242,7 +242,21 @@ class block_people extends block_base {
                 // special case for fullname virtual field
                 if($userField == 'fullname') {
                     $this->content->text .= html_writer::start_tag('div', array('class' => 'name'));
-                    $this->content->text .= fullname($teacher);
+
+                    if (has_capability('moodle/user:viewdetails', $currentcontext)) {
+                        $courseid = $COURSE->id;
+                        if ($courseid == SITEID) {
+                            $url = new moodle_url('/user/profile.php', array('id' => $user->id));
+                        } else {
+                            $url = new moodle_url('/user/view.php', array('id' => $user->id, 'course' => $courseid));
+                        }
+                        $attributes = array('href' => $url, 'class' => 'd-inline-block aabtn');                
+                        $this->content->text .= html_writer::tag('a', fullname($teacher), $attributes);
+                    }
+                    else {
+                        $this->content->text .= fullname($teacher);
+                    }
+
                     $this->content->text .= html_writer::end_tag('div');
                 }
                 // email get's a special mailto: link- @TODO this may need to leverage the logic around hiddenfields
